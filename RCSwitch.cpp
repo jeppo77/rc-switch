@@ -69,6 +69,7 @@ static const RCSwitch::Protocol PROGMEM proto[] = {
   { 500, {  6, 14 }, {  1,  2 }, {  2,  1 }, false },    // protocol 5
   { 450, { 23,  1 }, {  1,  2 }, {  2,  1 }, true },      // protocol 6 (HT6P20B)
   { 175, {  1, 31 }, {  1,  3 }, {  3,  1 }, false },    // protocol 7
+  { 340, {  14, 4 }, {  1,  2 }, {  2,  1 }, false },    // protocol 8
 
 };
 
@@ -503,6 +504,46 @@ void RCSwitch::send(unsigned long code, unsigned int length) {
   }
 #endif
 }
+
+/* send codes longer than 32 bits spread over 2 words */
+void RCSwitch::send(unsigned long codeMSB, unsigned long codeLSB, unsigned int length) {
+  if (this->nTransmitterPin == -1)
+    return;
+
+#if not defined( RCSwitchDisableReceiving )
+  // make sure the receiver is disabled while we transmit
+  int nReceiverInterrupt_backup = nReceiverInterrupt;
+  if (nReceiverInterrupt_backup != -1) {
+    this->disableReceive();
+  }
+#endif
+
+  for (int nRepeat = 0; nRepeat < nRepeatTransmit; nRepeat++) {
+    /* send first remaining part in codeMSB */
+    for (int i = length-1-32; i >= 0; i--) {
+      if (codeMSB & (1L << i))
+        this->transmit(protocol.one);
+      else
+        this->transmit(protocol.zero);
+    }
+    /* send full codeLSB */
+    for (int i = 31; i >= 0; i--) {
+      if (codeLSB & (1L << i))
+        this->transmit(protocol.one);
+      else
+        this->transmit(protocol.zero);
+    }
+    this->transmit(protocol.syncFactor);
+  }
+
+#if not defined( RCSwitchDisableReceiving )
+  // enable receiver again if we just disabled it
+  if (nReceiverInterrupt_backup != -1) {
+    this->enableReceive(nReceiverInterrupt_backup);
+  }
+#endif
+}
+
 
 /**
  * Transmit a single high-low pulse.
