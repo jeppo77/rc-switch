@@ -39,9 +39,11 @@
 
 
 /* Format for protocol definitions:
- * {pulselength, Sync bit, "0" bit, "1" bit}
+ * {pulselengthHigh,pulselengthLow, Sync bit, "0" bit, "1" bit, invert, send 0}
  *
- * pulselength: pulse length in microseconds, e.g. 350
+ * pulselengthHigh: pulse length of the high part in microseconds, e.g. 350
+ * pulselengtLow: pulse length of the low part in microseconds, e.g. 350
+ * Gap: time to wait between repetitions
  * Sync bit: {1, 31} means 1 high pulse and 31 low pulses
  *     (perceived as a 31*pulselength long pulse, total length of sync bit is
  *     32*pulselength microseconds), i.e:
@@ -62,14 +64,15 @@ static const RCSwitch::Protocol proto[] = {
 #else
 static const RCSwitch::Protocol PROGMEM proto[] = {
 #endif
-  { 350, {  1, 31 }, {  1,  3 }, {  3,  1 }, false },    // protocol 1
-  { 650, {  1, 10 }, {  1,  2 }, {  2,  1 }, false },    // protocol 2
-  { 100, { 30, 71 }, {  4, 11 }, {  9,  6 }, false },    // protocol 3
-  { 380, {  1,  6 }, {  1,  3 }, {  3,  1 }, false },    // protocol 4
-  { 500, {  6, 14 }, {  1,  2 }, {  2,  1 }, false },    // protocol 5
-  { 450, { 23,  1 }, {  1,  2 }, {  2,  1 }, true },      // protocol 6 (HT6P20B)
-  { 175, {  1, 31 }, {  1,  3 }, {  3,  1 }, false },    // protocol 7
-  { 340, {  14, 4 }, {  1,  2 }, {  2,  1 }, false },    // protocol 8
+  { 350, 350, 0, {  1, 31 }, {  1,  3 }, {  3,  1 }, false, false  },    // protocol 1
+  { 650, 650, 0, {  1, 10 }, {  1,  2 }, {  2,  1 }, false, false  },    // protocol 2
+  { 100, 100, 0, { 30, 71 }, {  4, 11 }, {  9,  6 }, false, false  },    // protocol 3
+  { 380, 380, 0, {  1,  6 }, {  1,  3 }, {  3,  1 }, false, false  },    // protocol 4
+  { 500, 500, 0, {  6, 14 }, {  1,  2 }, {  2,  1 }, false, false  },    // protocol 5
+  { 450, 450, 0, { 23,  1 }, {  1,  2 }, {  2,  1 }, true,  false  },      // protocol 6 (HT6P20B)
+  { 175, 175, 0, {  1, 31 }, {  1,  3 }, {  3,  1 }, false, false  },    // protocol 7
+  { 340, 340, 0, {  14, 4 }, {  1,  2 }, {  2,  1 }, false, false  },    // protocol 8
+  { 250, 143, 10400, {  1, 18 }, {  1,  9 }, {  1,  2 }, false, true   },     // protocol 9 // sends a 0 after sync by default!
 
 };
 
@@ -135,7 +138,8 @@ void RCSwitch::setProtocol(int nProtocol, int nPulseLength) {
   * Sets pulse length in microseconds
   */
 void RCSwitch::setPulseLength(int nPulseLength) {
-  this->protocol.pulseLength = nPulseLength;
+  this->protocol.pulseLengthHigh = nPulseLength;
+  this->protocol.pulseLengthLow = nPulseLength;
 }
 
 /**
@@ -487,14 +491,20 @@ void RCSwitch::send(unsigned long code, unsigned int length) {
   }
 #endif
 
+if (this->protocol.send0)
+{
+  this->transmit(protocol.zero);
+}
+
   for (int nRepeat = 0; nRepeat < nRepeatTransmit; nRepeat++) {
+    this->transmit(protocol.syncFactor);
     for (int i = length-1; i >= 0; i--) {
       if (code & (1L << i))
         this->transmit(protocol.one);
       else
         this->transmit(protocol.zero);
     }
-    this->transmit(protocol.syncFactor);
+    delayMicroseconds( this->protocol.gap);
   }
 
 #if not defined( RCSwitchDisableReceiving )
@@ -519,6 +529,11 @@ void RCSwitch::send(unsigned long codeMSB, unsigned long codeLSB, unsigned int l
 #endif
 
   for (int nRepeat = 0; nRepeat < nRepeatTransmit; nRepeat++) {
+    this->transmit(protocol.syncFactor);
+    if (this->protocol.send0)
+    {
+      this->transmit(protocol.zero);
+    }
     /* send first remaining part in codeMSB */
     for (int i = length-1-32; i >= 0; i--) {
       if (codeMSB & (1L << i))
@@ -533,7 +548,7 @@ void RCSwitch::send(unsigned long codeMSB, unsigned long codeLSB, unsigned int l
       else
         this->transmit(protocol.zero);
     }
-    this->transmit(protocol.syncFactor);
+    delayMicroseconds( this->protocol.gap);
   }
 
 #if not defined( RCSwitchDisableReceiving )
@@ -553,9 +568,9 @@ void RCSwitch::transmit(HighLow pulses) {
   uint8_t secondLogicLevel = (this->protocol.invertedSignal) ? HIGH : LOW;
 
   digitalWrite(this->nTransmitterPin, firstLogicLevel);
-  delayMicroseconds( this->protocol.pulseLength * pulses.high);
+  delayMicroseconds( this->protocol.pulseLengthHigh * pulses.high);
   digitalWrite(this->nTransmitterPin, secondLogicLevel);
-  delayMicroseconds( this->protocol.pulseLength * pulses.low);
+  delayMicroseconds( this->protocol.pulseLengthLow * pulses.low);
 }
 
 
