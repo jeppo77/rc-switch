@@ -109,12 +109,15 @@ class RCSwitch {
     };
 
     struct Protocol {
-        int pulseLength;
+      int pulseLengthHigh;
+      int pulseLengthLow;
+      int gap;
         HighLow syncFactor;
         HighLow zero;
         HighLow one;
         /** @brief if true inverts the high and low logic levels in the HighLow structs */
         bool invertedSignal;
+        bool send0;
     };
 
     void setProtocol(Protocol protocol);
