@@ -72,7 +72,7 @@ static const RCSwitch::Protocol PROGMEM proto[] = {
   { 450, 450, 0, { 23,  1 }, {  1,  2 }, {  2,  1 }, true,  false  },      // protocol 6 (HT6P20B)
   { 175, 175, 0, {  1, 31 }, {  1,  3 }, {  3,  1 }, false, false  },    // protocol 7
   { 340, 340, 0, {  14, 4 }, {  1,  2 }, {  2,  1 }, false, false  },    // protocol 8
-  { 250, 143, 10400, {  1, 18 }, {  1,  9 }, {  1,  2 }, false, true   },     // protocol 9 // sends a 0 after sync by default!
+  { 250, 143, 10400, {  1, 18 }, {  1,  9 }, {  1,  2 }, false, true   },     // protocol 9 
 
 };
 
@@ -491,10 +491,6 @@ void RCSwitch::send(unsigned long code, unsigned int length) {
   }
 #endif
 
-if (this->protocol.send0)
-{
-  this->transmit(protocol.zero);
-}
 
   for (int nRepeat = 0; nRepeat < nRepeatTransmit; nRepeat++) {
     this->transmit(protocol.syncFactor);
@@ -503,6 +499,10 @@ if (this->protocol.send0)
         this->transmit(protocol.one);
       else
         this->transmit(protocol.zero);
+    }
+    if (this->protocol.sendFinalPulse)
+    {
+      this->transmit(protocol.one);
     }
     delayMicroseconds( this->protocol.gap);
   }
@@ -530,10 +530,6 @@ void RCSwitch::send(unsigned long codeMSB, unsigned long codeLSB, unsigned int l
 
   for (int nRepeat = 0; nRepeat < nRepeatTransmit; nRepeat++) {
     this->transmit(protocol.syncFactor);
-    if (this->protocol.send0)
-    {
-      this->transmit(protocol.zero);
-    }
     /* send first remaining part in codeMSB */
     for (int i = length-1-32; i >= 0; i--) {
       if (codeMSB & (1L << i))
@@ -547,6 +543,10 @@ void RCSwitch::send(unsigned long codeMSB, unsigned long codeLSB, unsigned int l
         this->transmit(protocol.one);
       else
         this->transmit(protocol.zero);
+    }
+    if (this->protocol.sendFinalPulse)
+    {
+      this->transmit(protocol.one);
     }
     delayMicroseconds( this->protocol.gap);
   }
