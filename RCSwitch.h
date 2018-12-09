@@ -117,7 +117,7 @@ class RCSwitch {
         HighLow one;
         /** @brief if true inverts the high and low logic levels in the HighLow structs */
         bool invertedSignal;
-        bool send0;
+        bool sendFinalPulse;
     };
 
     void setProtocol(Protocol protocol);
